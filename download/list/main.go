@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -12,7 +13,20 @@ import (
 	"github.com/unixpickle/essentials"
 )
 
+var (
+	AccessToken string
+	UserAgent   string
+)
+
 func main() {
+	flag.StringVar(&AccessToken, "access-token", "", "reddit API access token")
+	flag.StringVar(&UserAgent, "user-agent", "corgi-downloader-v1 (by unixpickle)",
+		"HTTP user agent")
+	flag.Parse()
+	if AccessToken == "" {
+		essentials.Die("Missing required -access-token argument.")
+	}
+
 	os.Mkdir("listing", 0755)
 
 	it := IterateSubreddit("corgi")
@@ -27,7 +41,7 @@ func main() {
 }
 
 func IterateSubreddit(name string) func() (*ListResult, error) {
-	baseURL := "https://www.reddit.com/r/" + url.PathEscape(name) + "/new.json?count=100"
+	baseURL := "https://oauth.reddit.com/r/" + url.PathEscape(name) + "/new.json?limit=100"
 	var listing *ListResult
 	return func() (*ListResult, error) {
 		u := baseURL
@@ -41,13 +55,20 @@ func IterateSubreddit(name string) func() (*ListResult, error) {
 }
 
 func fetchListRequest(u string) (*ListResult, error) {
-	resp, err := http.Get(u)
-	fmt.Println(u)
+	req, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+AccessToken)
+	req.Header.Set("User-Agent", UserAgent)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
+		data, _ := ioutil.ReadAll(resp.Body)
+		fmt.Println(string(data))
 		return nil, fmt.Errorf("bad HTTP status code: %d", resp.StatusCode)
 	}
 	data, err := ioutil.ReadAll(resp.Body)
