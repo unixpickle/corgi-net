@@ -43,8 +43,8 @@ func main() {
 		urlStr := hex.EncodeToString(urlHash[:])
 		outName := filepath.Join(OutputDir, urlStr+".jpg")
 		errorName := filepath.Join(OutputDir, urlStr+"_error.txt")
-		index[urlStr] = link
 		if _, err := os.Stat(outName); err == nil {
+			index[urlStr] = link
 			numDownloaded++
 			continue
 		}
@@ -58,6 +58,7 @@ func main() {
 			essentials.Must(ioutil.WriteFile(errorName, []byte(err.Error()), 0644))
 			numErrors++
 		} else {
+			index[urlStr] = link
 			essentials.Must(ioutil.WriteFile(outName, imageData, 0644))
 			numDownloaded++
 		}
