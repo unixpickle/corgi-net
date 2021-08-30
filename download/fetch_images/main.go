@@ -30,16 +30,20 @@ var OutputDir = "images"
 
 func main() {
 	os.Mkdir(OutputDir, 0755)
-	urls := GetCandidateURLs("../list_pushshift/listing")
-	sort.Strings(urls)
-	log.Printf("total of %d URLs found", len(urls))
+	links := GetImageLinks("../list_pushshift/listing")
+	sort.Slice(links, func(i, j int) bool {
+		return strings.Compare(links[i].URL, links[j].URL) == -1
+	})
+	log.Printf("total of %d URLs found", len(links))
 	numDownloaded := 0
 	numErrors := 0
-	for _, url := range urls {
-		urlHash := md5.Sum([]byte(url))
+	index := map[string]*ImageLink{}
+	for _, link := range links {
+		urlHash := md5.Sum([]byte(link.URL))
 		urlStr := hex.EncodeToString(urlHash[:])
 		outName := filepath.Join(OutputDir, urlStr+".jpg")
 		errorName := filepath.Join(OutputDir, urlStr+"_error.txt")
+		index[urlStr] = link
 		if _, err := os.Stat(outName); err == nil {
 			numDownloaded++
 			continue
@@ -49,7 +53,7 @@ func main() {
 			continue
 		}
 		endTime := time.Now().Add(time.Second)
-		imageData, err := DownloadImage(url)
+		imageData, err := DownloadImage(link.URL)
 		if err != nil {
 			essentials.Must(ioutil.WriteFile(errorName, []byte(err.Error()), 0644))
 			numErrors++
@@ -60,6 +64,9 @@ func main() {
 		log.Printf("downloaded %d (got %d errors)", numDownloaded, numErrors)
 		time.Sleep(time.Until(endTime))
 	}
+	indexData, err := json.Marshal(index)
+	essentials.Must(err)
+	essentials.Must(ioutil.WriteFile("index.json", indexData, 0644))
 }
 
 func DownloadImage(u string) ([]byte, error) {
@@ -105,10 +112,10 @@ func DownloadImage(u string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func GetCandidateURLs(containerDir string) []string {
+func GetImageLinks(containerDir string) []*ImageLink {
 	listing, err := ioutil.ReadDir(containerDir)
 	essentials.Must(err)
-	var urls []string
+	var links []*ImageLink
 	for _, item := range listing {
 		if strings.HasPrefix(item.Name(), ".") || !strings.HasSuffix(item.Name(), ".json") {
 			continue
@@ -121,6 +128,12 @@ func GetCandidateURLs(containerDir string) []string {
 			if !entry.Indexable {
 				// Post was likely removed due to moderation.
 				continue
+			}
+
+			link := &ImageLink{
+				Title:      entry.Title,
+				CreatedUTC: entry.CreatedUTC,
+				Permalink:  entry.Permalink,
 			}
 
 			if entry.Preview != nil {
@@ -140,27 +153,39 @@ func GetCandidateURLs(containerDir string) []string {
 					}
 				}
 				if smallestURL != "" {
-					urls = append(urls, html.UnescapeString(smallestURL))
+					link.URL = html.UnescapeString(smallestURL)
+					links = append(links, link)
 					continue
 				}
 			}
 
 			// Fall-back to raw post image if available.
 			if strings.HasPrefix(entry.URL, "https://i.redd.it/") && strings.HasSuffix(entry.URL, ".jpg") {
-				urls = append(urls, entry.URL)
+				link.URL = entry.URL
+				links = append(links, link)
 				continue
 			}
 		}
 
 	}
-	return urls
+	return links
+}
+
+type ImageLink struct {
+	URL        string `json:"url"`
+	Title      string `json:"title"`
+	CreatedUTC int64  `json:"created_utc"`
+	Permalink  string `json:"permalink"`
 }
 
 type ListResult struct {
 	Data []struct {
-		URL       string `json:"url"`
-		Indexable bool   `json:"is_robot_indexable"`
-		Preview   *struct {
+		URL        string `json:"url"`
+		Indexable  bool   `json:"is_robot_indexable"`
+		Title      string `json:"title"`
+		CreatedUTC int64  `json:"created_utc"`
+		Permalink  string `json:"permalink"`
+		Preview    *struct {
 			Images []struct {
 				Source *struct {
 					URL    string `json:"url"`
