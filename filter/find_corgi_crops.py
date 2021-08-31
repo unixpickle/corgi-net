@@ -45,6 +45,9 @@ def main():
         img_path = os.path.join(args.image_dir, name)
         pil_img = Image.open(img_path)
         crops, bboxes = crops_of_image(pil_img, dev)
+        if crops is None:
+            print("skipping", name)
+            continue
         with torch.no_grad():
             outs = F.softmax(classifier(crops), dim=-1)
             scores = outs[:, classes[0]]
@@ -69,6 +72,8 @@ def crops_of_image(
 
     min_scale = crop_size / small_side
     max_scale = 1.0
+    if max_scale < min_scale:
+        return None, None
     scales = sorted(set([min_scale, min(max_scale, min_scale * 1.5)]))
 
     slices = []
