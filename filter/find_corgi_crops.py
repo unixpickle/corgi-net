@@ -26,9 +26,12 @@ def main():
     classifier = create_model("vit_large_patch32_384", pretrained=True).to(dev)
 
     patch_coords = {}
+    if os.path.exists(args.output_path):
+        with open(args.output_path, "rt") as f:
+            patch_coords = json.load(f)
 
     def save_coords():
-        with open(args.output_path + ".tmp", "rt") as f:
+        with open(args.output_path + ".tmp", "wt+") as f:
             json.dump(patch_coords, f)
         os.rename(args.output_path + ".tmp", args.output_path)
 
@@ -37,19 +40,21 @@ def main():
     for name in tqdm(sorted(os.listdir(args.image_dir))):
         if name.startswith(".") or not name.endswith(".jpg"):
             continue
+        if name.split(".")[0] in patch_coords:
+            continue
         img_path = os.path.join(args.image_dir, name)
         pil_img = Image.open(img_path)
         crops, bboxes = crops_of_image(pil_img, dev)
         with torch.no_grad():
-            outs = F.softmax(classifier(crops))
+            outs = F.softmax(classifier(crops), dim=-1)
             scores = outs[:, classes[0]]
             for c in classes[1:]:
                 scores += outs[:, c]
             scores = scores.cpu().numpy().tolist()
         patch_coords[name.split(".")[0]] = dict(scores=scores, bboxes=bboxes)
-        idx += 1
         if not idx % 100:
             save_coords()
+        idx += 1
 
     save_coords()
 
