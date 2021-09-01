@@ -1,3 +1,7 @@
 download/list_pushshift/listing/
 download/fetch_images/images/
 index.json
+__pycache__/
+crops.json
+crops.json.gz
+images.tar
