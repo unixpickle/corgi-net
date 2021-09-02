@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from PIL import Image
 from torch.utils.data import Dataset
@@ -102,6 +102,7 @@ class CroppedCorgiNetDataset(Dataset):
                      it from the internet.
     :param min_prob: the minimum corgi probability for a crop to be allowed to
                      enter the dataset.
+    :param transform: if specified, a function to apply to each cropped image.
     """
 
     def __init__(
@@ -110,6 +111,7 @@ class CroppedCorgiNetDataset(Dataset):
         split: str = "train",
         download: bool = True,
         min_prob: float = 0.05,
+        transform: Optional[Any] = None,
     ):
         super().__init__()
 
@@ -119,6 +121,7 @@ class CroppedCorgiNetDataset(Dataset):
             download=download,
         )
         self.min_prob = min_prob
+        self.transform = transform
 
         self.crop_pairs = []
         for i, hash in enumerate(self.base_dataset.image_hashes):
@@ -141,4 +144,7 @@ class CroppedCorgiNetDataset(Dataset):
     def __getitem__(self, idx: int) -> Any:
         base_index, (x, y, w, h) = self.crop_pairs[idx]
         base_image, _ = self.base_dataset[base_index]
-        return base_image.crop(box=(x, y, x + w, y + h))
+        out_image = base_image.crop(box=(x, y, x + w, y + h))
+        if self.transform:
+            out_image = self.transform(out_image)
+        return out_image
