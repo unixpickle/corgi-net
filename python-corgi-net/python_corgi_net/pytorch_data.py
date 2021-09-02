@@ -9,7 +9,7 @@ from torchvision.datasets.utils import download_and_extract_archive
 
 class CorgiNetDataset(Dataset):
     """
-    A dataset of Corgi images and corresponding metadata.
+    A dataset of corgi images and corresponding metadata.
 
     Items in this dataset are tuples of the form (image, crops), where `image`
     is a PIL image, and `crops` is a dict describing which square regions of
